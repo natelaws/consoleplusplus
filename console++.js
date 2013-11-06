@@ -83,6 +83,7 @@ var _ANSICODES = {
     _colored = true,
     _messageColored = false,
     _timed = true,
+    _json = false,
     _onOutput = null;
 
 /**
@@ -123,6 +124,7 @@ var _applyColors = function(str) {
     return str;
 };
 
+
 /**
  * Decorate the Arguments passed to the console methods we override.
  * First element, the message, is now colored, timed and more (based on config).
@@ -132,11 +134,33 @@ var _applyColors = function(str) {
  * @returns Array of Arguments, decorated.
  */
 var _decorateArgs = function(argsArray, level) {
-    var args = Array.prototype.slice.call(argsArray, 1),
+    var args = Array.prototype.slice.call(argsArray),
         msg = argsArray[0],
         levelMsg;
 
-    if (console.isColored()) {
+    if (console.isJSONOutput()) {
+        var obj = {},
+            c = 1;
+
+        obj.level = console.getLevelName(level);
+        obj["@timestamp"] = new Date();
+
+        args.forEach(function(prop){
+            if(prop instanceof Error) {
+                obj["arg" + c] = prop.toString();
+                obj["stack"] = prop.stack;
+                obj["type"] = prop.type;
+                obj["arguments"] = prop.arguments;
+            }
+            else {
+                obj["arg" + c] = prop;
+            }
+            c++;
+        });
+
+        return [JSON.stringify(obj)];
+    }
+    else if (console.isColored()) {
         levelMsg = _applyColors("#" + console.getLevelColor(level) + "{" + console.getLevelName(level) + "}");
         msg = _applyColors(msg);
 
@@ -149,7 +173,7 @@ var _decorateArgs = function(argsArray, level) {
 
     msg = _formatMessage(msg, levelMsg);
 
-    args.splice(0, 0, msg);
+    args.splice(0, 1, msg);
 
     return args;
 };
@@ -246,6 +270,17 @@ console.isTimestamped = function() {
     return _timed;
 };
 
+// Enable/Disable JSON Output
+console.enableJSONOutput = function() {
+    _json = true;
+};
+console.disableJSONOutput = function() {
+    _json = false;
+};
+console.isJSONOutput = function() {
+    return _json;
+};
+
 // Set OnOutput Callback (useful to write to file or something)
 // Callback: `function(formattedMessage, levelName)`
 console.onOutput = function(callback) {
@@ -285,6 +320,13 @@ console.debug = function(msg) {
 console.log = function(msg) {
     if (arguments.length > 0) {
         _console.log.apply(this, arguments);
+    }
+};
+console.logObject = function(obj) {
+    if (arguments.length === 1) {
+        obj["@timestamp"] = obj["@timestamp"] || new Date();
+        obj.level = obj.level || "NONE";
+        _console.log.apply(this, [JSON.stringify(obj)]);
     }
 };
 
